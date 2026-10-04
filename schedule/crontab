@@ -1,0 +1,1 @@
+0 9 * * 1-5 cd /path/to/bellhaven-sync && .venv/bin/python pipeline.py >> data/pipeline.log 2>&1

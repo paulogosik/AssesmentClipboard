@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bellhaven Sync · Review</title>
+<style>
+  :root { --ink:#1f2328; --muted:#656d76; --line:#d0d7de; --bg:#f6f8fa; --ok:#1a7f37; --bad:#cf222e; --accent:#0969da; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:14px 24px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0; }
+  main { max-width:1100px; margin:0 auto; padding:20px 16px 60px; }
+  nav a { margin-right:14px; color:var(--muted); text-decoration:none; }
+  nav a.active { color:var(--ink); font-weight:600; border-bottom:2px solid var(--accent); }
+  .meta { color:var(--muted); font-size:12px; }
+  .flash { background:#ddf4ff; border:1px solid #54aeff; padding:8px 12px; border-radius:6px; margin-bottom:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:14px; }
+  .card h2 { font-size:15px; margin:0 0 8px; }
+  .badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; margin-right:6px; background:#eaeef2; }
+  .badge.chow { background:#fff1e5; color:#953800; }
+  .badge.reparent { background:#ddf4ff; color:#0550ae; }
+  .badge.duplicate { background:#ffebe9; color:#a40e26; }
+  .badge.create { background:#dafbe1; color:#116329; }
+  .badge.not_on_site { background:#fff8c5; color:#7d4e00; }
+  table { border-collapse:collapse; width:100%; margin:8px 0; font-size:13px; }
+  th, td { text-align:left; border-bottom:1px solid var(--line); padding:4px 8px; vertical-align:top; }
+  td.before { color:var(--bad); text-decoration:line-through; }
+  td.after { color:var(--ok); font-weight:600; }
+  ul.evidence { margin:6px 0; padding-left:18px; color:#333; }
+  details { margin:6px 0; color:var(--muted); }
+  pre { background:var(--bg); padding:8px; border-radius:6px; overflow-x:auto; font-size:12px; }
+  .actions { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  button { border:1px solid var(--line); background:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:600; }
+  button.approve { background:var(--ok); color:#fff; border-color:var(--ok); }
+  button.reject { color:var(--bad); }
+  input[name=reason] { padding:6px 8px; border:1px solid var(--line); border-radius:6px; min-width:220px; }
+  .result { font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Bellhaven Sync · Review queue</h1>
+    <div class="meta">
+      {% if last_run %}Last run {{ last_run.started_at }} · {{ last_run.locations }} website locations · {{ last_run.confirmed }} confirmed matches · {{ last_run.new_proposals }} new proposals{% else %}No pipeline run yet{% endif %}
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('run_pipeline') }}"><button>Run pipeline now</button></form>
+</header>
+<main>
+  {% if message %}<div class="flash">{{ message }}</div>{% endif %}
+  <nav>
+    {% for s, n in counts.items() %}
+      <a href="{{ url_for('index', status=s) }}" class="{{ 'active' if s == status else '' }}">{{ s|capitalize }} ({{ n }})</a>
+    {% endfor %}
+  </nav>
+  <p class="meta">Nothing is written to the CRM until a proposal is approved. Decided proposals are never proposed again.</p>
+  {% for p in proposals %}
+  <div class="card">
+    <h2><span class="badge {{ p.type }}">{{ labels.get(p.type, p.type) }}</span>{{ p.title }}</h2>
+    {% if p.diff %}
+    <table>
+      <tr><th>Field</th><th>Current CRM</th><th>Proposed</th></tr>
+      {% for d in p.diff %}
+      <tr><td>{{ d.field }}</td><td class="before">{{ d.before or "—" }}</td><td class="after">{{ d.after }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+    <ul class="evidence">{% for e in p.evidence %}<li>{{ e }}</li>{% endfor %}</ul>
+    <details><summary>API calls that will run on approval</summary><pre>{{ p.actions|tojson(indent=2) }}</pre></details>
+    {% if p.status in ('pending', 'failed') %}
+    {% if p.result %}<div class="result">Last attempt failed: {{ p.result|tojson }}</div>{% endif %}
+    <div class="actions">
+      <form method="post" action="{{ url_for('approve', key=p.key) }}"><button class="approve">Approve &amp; write to CRM</button></form>
+      <form method="post" action="{{ url_for('reject', key=p.key) }}"><input name="reason" placeholder="Reason (optional)"><button class="reject">Reject</button></form>
+    </div>
+    {% else %}
+    <div class="result">{{ p.status|capitalize }} at {{ p.decided_at }}{% if p.result %} · {{ p.result|tojson }}{% endif %}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <p>No {{ status }} proposals.</p>
+  {% endfor %}
+</main>
+</body>
+</html>
